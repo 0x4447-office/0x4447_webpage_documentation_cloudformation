@@ -1,0 +1,1 @@
+Deploy all resources that are needed for the documentation page.
