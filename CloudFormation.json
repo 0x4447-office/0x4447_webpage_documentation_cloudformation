@@ -10,6 +10,14 @@
 			"Description": "Type your domain for your project",
 			"Type": "String"
 		},
+		"GitHubToken": {
+			"Description": "You need to create a Personal access tokens (https://github.com/settings/tokens) for CodePipeline to have access to the GitHub repo despite it being public.",
+			"Type": "String"
+		},
+		"CertificateARN": {
+			"Description": "The ARN of a SSL Certificate.",
+			"Type": "String"
+		},
 		"Stage": {
 			"Description": "Select what type of environment are you deploying.",
 			"Type": "String",
@@ -18,14 +26,6 @@
 				"development"
 			],
 			"Default": "development"
-		},
-		"GitHubToken": {
-			"Description": "You need to create a Personal access tokens (https://github.com/settings/tokens) for CodePipeline to have access to the GitHub repo despite it being public.",
-			"Type": "String"
-		},
-		"CertificateARN": {
-			"Description": "The ARN of a SSL Certificate.",
-			"Type": "String"
 		}
 	},
 	"Resources": {
@@ -104,7 +104,10 @@
 					"PriceClass": "PriceClass_100",
 					"Restrictions": {
 						"GeoRestriction": {
-							"RestrictionType": "none"
+							"RestrictionType": "blacklist",
+							"Locations": [
+								"CN"
+							]
 						}
 					}
 				}
@@ -153,6 +156,189 @@
 							"Action": "s3:GetObject",
 							"Resource": {
 								"Fn::Sub": "arn:aws:s3:::${S3WebpageDocumentation}/*"
+							}
+						}
+					]
+				}
+			}
+		},
+		"CodeBuildWebpageDocumentation": {
+			"Type": "AWS::CodeBuild::Project",
+			"Properties": {
+				"Name": "webpage_documentation",
+				"ServiceRole": {
+					"Fn::GetAtt": [
+						"CodeBuildWebpageDocumentationRole",
+						"Arn"
+					]
+				},
+				"TimeoutInMinutes": 60,
+				"Source": {
+					"Type": "CODEPIPELINE",
+					"BuildSpec": "buildspec.yml"
+				},
+				"Artifacts": {
+					"Type": "CODEPIPELINE"
+				},
+				"Environment": {
+					"Type": "LINUX_CONTAINER",
+					"ComputeType": "BUILD_GENERAL1_SMALL",
+					"Image": "aws/codebuild/standard:3.0",
+					"EnvironmentVariables": [
+						{
+							"Name": "S3_BUCKET",
+							"Type": "PLAINTEXT",
+							"Value": {
+								"Ref": "S3WebpageDocumentation"
+							}
+						},
+						{
+							"Name": "DISTRIBUTION_ID",
+							"Type": "PLAINTEXT",
+							"Value": {
+								"Ref": "CloudFrontStart"
+							}
+						}
+					]
+				}
+			}
+		},
+		"CodeBuildWebpageDocumentationRole": {
+			"Type": "AWS::IAM::Role",
+			"Properties": {
+				"RoleName": "webpage_documentation_codebuild",
+				"AssumeRolePolicyDocument": {
+					"Version": "2012-10-17",
+					"Statement": [
+						{
+							"Effect": "Allow",
+							"Principal": {
+								"Service": "codebuild.amazonaws.com"
+							},
+							"Action": "sts:AssumeRole"
+						}
+					]
+				}
+			}
+		},
+		"CodeBuildWebpageDocumentationPolicyCloudFrontCreateInvalidation": {
+			"Type": "AWS::IAM::Policy",
+			"Properties": {
+				"Roles": [
+					{
+						"Ref": "CodeBuildWebpageDocumentationRole"
+					}
+				],
+				"PolicyName": "cloud_front_invalidate",
+				"PolicyDocument": {
+					"Version": "2012-10-17",
+					"Statement": [
+						{
+							"Effect": "Allow",
+							"Action": [
+								"cloudfront:CreateInvalidation"
+							],
+							"Resource": "*"
+						}
+					]
+				}
+			}
+		},
+		"CodeBuildWebpageDocumentationPolicyCloudFrontList": {
+			"Type": "AWS::IAM::Policy",
+			"Properties": {
+				"Roles": [
+					{
+						"Ref": "CodeBuildWebpageDocumentationRole"
+					}
+				],
+				"PolicyName": "cloud_front_list",
+				"PolicyDocument": {
+					"Version": "2012-10-17",
+					"Statement": [
+						{
+							"Effect": "Allow",
+							"Action": [
+								"cloudfront:ListDistributions"
+							],
+							"Resource": "*"
+						}
+					]
+				}
+			}
+		},
+		"CodeBuildWebpageDocumentationPolicyS3Hosting": {
+			"Type": "AWS::IAM::Policy",
+			"Properties": {
+				"Roles": [
+					{
+						"Ref": "CodeBuildWebpageDocumentationRole"
+					}
+				],
+				"PolicyName": "s3_hosting",
+				"PolicyDocument": {
+					"Version": "2012-10-17",
+					"Statement": [
+						{
+							"Effect": "Allow",
+							"Action": [
+								"s3:PutObject",
+								"s3:DeleteObject"
+							],
+							"Resource": {
+								"Fn::Sub": "arn:aws:s3:::${S3WebpageDocumentation}/*"
+							}
+						}
+					]
+				}
+			}
+		},
+		"CodeBuildWebpageDocumentationPolicyCWL": {
+			"Type": "AWS::IAM::Policy",
+			"Properties": {
+				"Roles": [
+					{
+						"Ref": "CodeBuildWebpageDocumentationRole"
+					}
+				],
+				"PolicyName": "cloud_watch_log_access",
+				"PolicyDocument": {
+					"Version": "2012-10-17",
+					"Statement": [
+						{
+							"Effect": "Allow",
+							"Action": [
+								"logs:CreateLogGroup",
+								"logs:CreateLogStream",
+								"logs:PutLogEvents"
+							],
+							"Resource": [
+								{
+									"Fn::Sub": "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/*"
+								}
+							]
+						}
+					]
+				}
+			}
+		},
+		"CodeBuildWebpageDocumentationPolicyS3": {
+			"Type": "AWS::IAM::Policy",
+			"Properties": {
+				"Roles": [
+					{
+						"Ref": "CodeBuildWebpageDocumentationRole"
+					}
+				],
+				"PolicyName": "s3_artifact_access",
+				"PolicyDocument": {
+					"Version": "2012-10-17",
+					"Statement": [
+						{
+							"Effect": "Allow",
+							"Action": "s3:*",
+							"Resource": {
+								"Fn::Sub": "arn:aws:s3:::${CodePipelineArtifacts}/*"
 							}
 						}
 					]
@@ -281,29 +467,6 @@
 				"RegisterWithThirdParty": true
 			}
 		},
-		"PipelineWebpageDocumentationPolicyS3": {
-			"Type": "AWS::IAM::Policy",
-			"Properties": {
-				"PolicyName": "s3",
-				"Roles": [
-					{
-						"Ref": "PipelineWebpageDocumentationRole"
-					}
-				],
-				"PolicyDocument": {
-					"Version": "2012-10-17",
-					"Statement": [
-						{
-							"Effect": "Allow",
-							"Action": "s3:*",
-							"Resource": {
-								"Fn::Sub": "arn:aws:s3:::${CodePipelineArtifacts}/*"
-							}
-						}
-					]
-				}
-			}
-		},
 		"PipelineWebpageDocumentationPolicyCB": {
 			"Type": "AWS::IAM::Policy",
 			"Properties": {
@@ -330,175 +493,15 @@
 				}
 			}
 		},
-		"CodeBuildWebpageDocumentationRole": {
-			"Type": "AWS::IAM::Role",
-			"Properties": {
-				"RoleName": "webpage_documentation_codebuild",
-				"AssumeRolePolicyDocument": {
-					"Version": "2012-10-17",
-					"Statement": [
-						{
-							"Effect": "Allow",
-							"Principal": {
-								"Service": "codebuild.amazonaws.com"
-							},
-							"Action": "sts:AssumeRole"
-						}
-					]
-				}
-			}
-		},
-		"CodeBuildWebpageDocumentation": {
-			"Type": "AWS::CodeBuild::Project",
-			"Properties": {
-				"Name": "webpage_documentation",
-				"ServiceRole": {
-					"Fn::GetAtt": [
-						"CodeBuildWebpageDocumentationRole",
-						"Arn"
-					]
-				},
-				"TimeoutInMinutes": 60,
-				"Source": {
-					"Type": "CODEPIPELINE",
-					"BuildSpec": "buildspec.yml"
-				},
-				"Artifacts": {
-					"Type": "CODEPIPELINE"
-				},
-				"Environment": {
-					"Type": "LINUX_CONTAINER",
-					"ComputeType": "BUILD_GENERAL1_SMALL",
-					"Image": "aws/codebuild/standard:3.0",
-					"EnvironmentVariables": [
-						{
-							"Name": "S3_BUCKET",
-							"Type": "PLAINTEXT",
-							"Value": {
-								"Ref": "S3WebpageDocumentation"
-							}
-						},
-						{
-							"Name": "DISTRIBUTION_ID",
-							"Type": "PLAINTEXT",
-							"Value": {
-								"Ref": "CloudFrontStart"
-							}
-						}
-					]
-				}
-			}
-		},
-		"CodeBuildWebpageDocumentationPolicyCloudFrontCreateInvalidation": {
+		"PipelineWebpageDocumentationPolicyS3": {
 			"Type": "AWS::IAM::Policy",
 			"Properties": {
+				"PolicyName": "s3",
 				"Roles": [
 					{
-						"Ref": "CodeBuildWebpageDocumentationRole"
+						"Ref": "PipelineWebpageDocumentationRole"
 					}
 				],
-				"PolicyName": "cloud_front_invalidate",
-				"PolicyDocument": {
-					"Version": "2012-10-17",
-					"Statement": [
-						{
-							"Effect": "Allow",
-							"Action": [
-								"cloudfront:CreateInvalidation"
-							],
-							"Resource": "*"
-						}
-					]
-				}
-			}
-		},
-		"CodeBuildWebpageDocumentationPolicyCloudFrontList": {
-			"Type": "AWS::IAM::Policy",
-			"Properties": {
-				"Roles": [
-					{
-						"Ref": "CodeBuildWebpageDocumentationRole"
-					}
-				],
-				"PolicyName": "cloud_front_list",
-				"PolicyDocument": {
-					"Version": "2012-10-17",
-					"Statement": [
-						{
-							"Effect": "Allow",
-							"Action": [
-								"cloudfront:ListDistributions"
-							],
-							"Resource": "*"
-						}
-					]
-				}
-			}
-		},
-		"CodeBuildWebpageDocumentationPolicyS3Hosting": {
-			"Type": "AWS::IAM::Policy",
-			"Properties": {
-				"Roles": [
-					{
-						"Ref": "CodeBuildWebpageDocumentationRole"
-					}
-				],
-				"PolicyName": "s3_hosting",
-				"PolicyDocument": {
-					"Version": "2012-10-17",
-					"Statement": [
-						{
-							"Effect": "Allow",
-							"Action": [
-								"s3:PutObject",
-								"s3:DeleteObject"
-							],
-							"Resource": {
-								"Fn::Sub": "arn:aws:s3:::${S3WebpageDocumentation}/*"
-							}
-						}
-					]
-				}
-			}
-		},
-		"CodeBuildWebpageDocumentationPolicyCWL": {
-			"Type": "AWS::IAM::Policy",
-			"Properties": {
-				"Roles": [
-					{
-						"Ref": "CodeBuildWebpageDocumentationRole"
-					}
-				],
-				"PolicyName": "cloud_watch_log_access",
-				"PolicyDocument": {
-					"Version": "2012-10-17",
-					"Statement": [
-						{
-							"Effect": "Allow",
-							"Action": [
-								"logs:CreateLogGroup",
-								"logs:CreateLogStream",
-								"logs:PutLogEvents"
-							],
-							"Resource": [
-								{
-									"Fn::Sub": "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/*"
-								}
-							]
-						}
-					]
-				}
-			}
-		},
-		"CodeBuildWebpageDocumentationPolicyS3": {
-			"Type": "AWS::IAM::Policy",
-			"Properties": {
-				"Roles": [
-					{
-						"Ref": "CodeBuildWebpageDocumentationRole"
-					}
-				],
-				"PolicyName": "s3_artifact_access",
 				"PolicyDocument": {
 					"Version": "2012-10-17",
 					"Statement": [
