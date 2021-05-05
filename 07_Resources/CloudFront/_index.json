@@ -3,28 +3,20 @@
 		"Type": "AWS::CloudFront::Distribution",
 		"Properties": {
 			"DistributionConfig": {
-				"Comment": "documentation.0x4447.com",
+				"Comment": { "Ref": "DomainParam" },
 				"DefaultCacheBehavior": {
-					"ForwardedValues": {
-						"Cookies": {
-							"Forward": "none"
-						},
-						"QueryString": false
-					},
-					"MinTTL": 0,
-					"TargetOriginId": { "Fn::GetAtt": ["S3WebpageDocumentation", "DomainName"] },
+					"TargetOriginId": { "Fn::Sub": "${S3WebpageDocumentation}.s3-website-${AWS::Region}.amazonaws.com" },
 					"ViewerProtocolPolicy": "redirect-to-https",
 					"AllowedMethods": ["GET", "HEAD"],
 					"CachedMethods": ["GET", "HEAD"],
 					"Compress": true,
-					"DefaultTTL": 86400,
-					"MaxTTL": 31536000,
-					"SmoothStreaming": false
+					"SmoothStreaming": false,
+					"CachePolicyId": { "Ref": "CloudFrontWebpgeCachePolicy" }
 				},
 				"Enabled": true,
 				"Origins": [{
-					"DomainName": { "Fn::GetAtt": ["S3WebpageDocumentation", "DomainName"] },
-					"Id": { "Fn::GetAtt": ["S3WebpageDocumentation", "DomainName"] },
+					"DomainName": { "Fn::Sub": "${S3WebpageDocumentation}.s3-website-${AWS::Region}.amazonaws.com" },
+					"Id": { "Fn::Sub": "${S3WebpageDocumentation}.s3-website-${AWS::Region}.amazonaws.com" },
 					"CustomOriginConfig": {
 						"HTTPPort": 80,
 						"HTTPSPort": 443,
@@ -32,19 +24,33 @@
 						"OriginSSLProtocols": ["TLSv1.1"]
 					}
 				}],
-				"Aliases": [ { "Fn::Sub": "${DomainHomePage}" } ],
+				"Aliases": [ { "Ref": "DomainParam" } ],
 				"ViewerCertificate": {
-					"AcmCertificateArn" : { "Ref": "CertificateARN" },
+					"AcmCertificateArn" : { "Ref": "CertificateARNParam" },
 					"SslSupportMethod": "sni-only"
 				},
 				"DefaultRootObject": "index.html",
 				"HttpVersion": "http2",
 				"IPV6Enabled": true,
-				"PriceClass": "PriceClass_100",
+				"PriceClass": "PriceClass_200",
+				"CustomErrorResponses": [
+					{
+						"ErrorCachingMinTTL": 300,
+						"ErrorCode": 404,
+						"ResponseCode": 200,
+						"ResponsePagePath": "/index.html"
+					},
+					{
+						"ErrorCachingMinTTL": 300,
+						"ErrorCode": 403,
+						"ResponseCode": 200,
+						"ResponsePagePath": "/index.html"
+					}
+				],
 				"Restrictions": {
 					"GeoRestriction": {
 						"RestrictionType": "blacklist",
-						"Locations": [ "CN" ]
+						"Locations": [ "CN", "LA", "CU", "VN", "KP" ]
 					}
 				}
 			}

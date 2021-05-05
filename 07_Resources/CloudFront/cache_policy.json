@@ -1,0 +1,27 @@
+{
+    "CloudFrontWebpgeCachePolicy": {
+        "Type": "AWS::CloudFront::CachePolicy",
+        "Properties": {
+            "CachePolicyConfig": {
+                "Name": "default",
+                "Comment": "Default setting.",
+                "DefaultTTL": 86400,
+                "MaxTTL": 31536000,
+                "MinTTL": 86400,
+                "ParametersInCacheKeyAndForwardedToOrigin": {
+                    "CookiesConfig": {
+                        "CookieBehavior": "all"
+                    },
+                    "EnableAcceptEncodingBrotli": true,
+                    "EnableAcceptEncodingGzip": true,
+                    "HeadersConfig": {
+                        "HeaderBehavior": "none"
+                    },
+                    "QueryStringsConfig": {
+                        "QueryStringBehavior": "all"
+                    }
+                }
+            }
+        }
+    }
+}
